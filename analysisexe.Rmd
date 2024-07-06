@@ -1,0 +1,100 @@
+---
+title: "Msc_simulation"
+output: pdf_document
+date: "2024-02-29"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 9999)
+```
+
+# 0. Setup
+## 0.1 load libraries
+```{r}
+library(tidyverse) # used for data wrangling
+library(sampling) # used for sampling
+library(MASS) # used for generating data
+library(GGally) # used for visualizing results
+library(ggplot2) #same as above
+library(gridExtra) #visualizations
+
+library(e1071) # used for CV 
+library(caret) # used for CV 
+
+library(parallel) # used for making clusters on cores
+library(doParallel) # used for parallelizing the simulation 
+```
+
+## 0.2.1 Scenario inputs: simulation
+```{r}
+mc = c(0.38,0.64,0.87)
+# beta and w correlation value 
+bias_factor=c(-0.5,1,3)
+r=c(0.5,0.7,0.9)
+y_var=c(2,10)
+parameter_scenario = expand.grid(mc=mc,bias_factor=bias_factor,r=r,y_var=y_var)
+```
+## 0.2.2 Fixed inputs: simulation
+```{r}
+N = 10^5 # population size 
+nps_n = 10000 # Non-probability sample size 
+p = 3 # Number of independent variables 
+betas=list(c(2,1,0.5))  # variance of true Beta 
+fixed_parameters = expand.grid(N = N,nps_n = nps_n,p = p,betas = betas)
+```
+
+# 1. Run analysis 
+```{r}
+Run_sim_func = function(par_comb_df,fixed_parameters, B) {
+  
+    #send functions to cores
+  source("Functions_script.r")
+  functions_in_supportfunc = ls(envir = globalenv())
+  
+  cl = makeCluster(detectCores()) 
+  clusterExport(cl, functions_in_supportfunc)
+  clusterEvalQ(cl, { library(MASS)  
+    library(tidyverse)
+    library(GGally)
+    library(sampling)
+    library(e1071)
+    library(caret)
+    set.seed(2135248)}
+    )
+  
+  result_list = parLapply(cl,1:nrow(par_comb_df), function(i) {
+    output = simfunction(par_comb_df[i, ],fixed_parameters, B)
+    
+    result=output$combined_df
+
+    MSE_agg_df =output$MSE_df
+    hyper_agg_df=output$hyper_comb_df
+    result = result %>%
+      mutate(bias_factor = par_comb_df[i,]$bias_factor,
+             r = par_comb_df[i,]$r,
+             multicoliniarity = par_comb_df[i,]$mc,
+             y_var =par_comb_df[i,]$y_var,
+             scenario = i) %>%
+      group_by(scenario,ps_n)%>%
+      mutate( rarmse = (rmse /rmse[method == "beta_ps"])-1,
+              rMoAB = (MAB /MAB[method == "beta_nps"])-1)
+    
+  
+    list(result = result, MSE_agg_df = output$MSE_df, hyper_agg_df = output$hyper_comb_df)
+  })
+    
+result_df <- do.call("rbind", lapply(result_list, `[[`, "result"))
+MSE_agg_df <- do.call("rbind", lapply(result_list, `[[`, "MSE_agg_df"))
+hyper_agg_df <- do.call("rbind", lapply(result_list, `[[`, "hyper_agg_df"))
+stopCluster(cl)
+
+return(list(result_df = result_df, MSE_agg_df = MSE_agg_df, hyper_agg_df = hyper_agg_df))
+}
+
+Final_results = Run_sim_func(parameter_scenario[,],fixed_parameters,1000)
+
+saveRDS(Final_results$result_df,"Final_results_results")
+saveRDS(Final_results$MSE_agg_df,"Final_results_rawMSE")
+saveRDS(Final_results$hyper_agg_df,"Final_results_Hyperparms")
+```
