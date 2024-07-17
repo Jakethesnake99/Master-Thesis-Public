@@ -320,7 +320,7 @@ df=readRDS("Final_results_results")
 df=df[df$estimation_method != "w",]
 
 
-glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta))  ,expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
+glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)),expression(hat(beta)[lambda ]))
 
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
@@ -363,8 +363,6 @@ for (i in 1:6) {
 df=readRDS("Final_results_results")
 df=df[df$estimation_method != "w",]
 
-glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta))  ,expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
-
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
@@ -383,9 +381,7 @@ plot_moab = ggplot(df, aes(x = ps_n, y = moab, colour = estimation_method, shape
 
 
 
-llegend = cowplot::get_plot_component(plot_moab, 'guide-box-bottom', return_all = TRUE)
-# Save the legend as a separate plot
-ggsave(filename = 'legend_big_raw.pdf', plot = llegend,units ="cm" , width = 10, height = 2)
+
 
 
 create_plot = function(page_number) {
