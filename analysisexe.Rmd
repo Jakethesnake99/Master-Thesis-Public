@@ -15,9 +15,6 @@ options(scipen = 9999)
 library(tidyverse) # used for data wrangling
 library(sampling) # used for sampling
 library(MASS) # used for generating data
-library(GGally) # used for visualizing results
-library(ggplot2) #same as above
-library(gridExtra) #visualizations
 
 library(e1071) # used for CV 
 library(caret) # used for CV 
@@ -48,7 +45,7 @@ fixed_parameters = expand.grid(N = N,nps_n = nps_n,p = p,betas = betas)
 ```{r}
 Run_sim_func = function(par_comb_df,fixed_parameters, B) {
   
-    #send functions to cores
+  #send functions and packages to cores
   source("Functions_script.r")
   functions_in_supportfunc = ls(envir = globalenv())
   
@@ -62,7 +59,7 @@ Run_sim_func = function(par_comb_df,fixed_parameters, B) {
     library(caret)
     set.seed(2135248)}
     )
-  
+  #run the function 1000 times for each scenario and neatly store the results ALSO GENERATES RELATIVE RESULTS.
   result_list = parLapply(cl,1:nrow(par_comb_df), function(i) {
     output = simfunction(par_comb_df[i, ],fixed_parameters, B)
     
@@ -77,13 +74,14 @@ Run_sim_func = function(par_comb_df,fixed_parameters, B) {
              y_var =par_comb_df[i,]$y_var,
              scenario = i) %>%
       group_by(scenario,ps_n)%>%
-      mutate( rarmse = (rmse /rmse[method == "beta_ps"])-1,
-              rMoAB = (MAB /MAB[method == "beta_nps"])-1)
+      mutate( rarmse = (armse /armse[estimation_method == "MLE_ps"])-1,
+              rMoAB = (moab /moab[estimation_method == "w"])-1)
     
   
     list(result = result, MSE_agg_df = output$MSE_df, hyper_agg_df = output$hyper_comb_df)
   })
-    
+
+#just bind the results from each scenario to a main big df       
 result_df <- do.call("rbind", lapply(result_list, `[[`, "result"))
 MSE_agg_df <- do.call("rbind", lapply(result_list, `[[`, "MSE_agg_df"))
 hyper_agg_df <- do.call("rbind", lapply(result_list, `[[`, "hyper_agg_df"))
@@ -94,7 +92,10 @@ return(list(result_df = result_df, MSE_agg_df = MSE_agg_df, hyper_agg_df = hyper
 
 Final_results = Run_sim_func(parameter_scenario[,],fixed_parameters,1000)
 
+#Save the results 
 saveRDS(Final_results$result_df,"Final_results_results")
 saveRDS(Final_results$MSE_agg_df,"Final_results_rawMSE")
 saveRDS(Final_results$hyper_agg_df,"Final_results_Hyperparms")
+
+
 ```

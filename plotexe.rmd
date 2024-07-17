@@ -4,118 +4,130 @@ output: pdf_document
 date: "2024-07-06"
 ---
 
+
+This entire documents are just plots, its pretty self explanatory and the names of the plots indicate what they plot.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+```{r}
+library(dplyr) # general wrangling
+
+library(GGally) # used for visualizing results
+library(ggplot2) #same as above
+library(gridExtra) #visualizations
+library(ggforce) #visualizations
+library(cowplot) #visualizations
+```
+
+
 # 3. plotting section
 ```{r}
 # 3. plotting section
 
 # Fix colours across plots for each estimation method
-estimation_colors <- c(
-  "beta_bays" = "#E41A1C", # Red
-  "beta_dist" = "#377EB8", # Blue
-  "beta_ridge" = "#4DAF4A", # Green
-  "beta_target" = "#984EA3", # Purple
-  "beta_optimal" = "#FF7F00", # Orange
-  "beta_ps" = "#FFFF33",  # Yellow
-  "beta_nps" = "#A52A2A"  # brown
+estimation_colors = c(
+  "Bayes_cp" = "#E41A1C", # Red
+  "DBTLE" = "#377EB8", # Blue
+  "ABTLE" = "#4DAF4A", # Green
+  "RRE" = "#984EA3", # Purple
+  "ABTLE_theoretical" = "#FF7F00", # Orange
+  "MLE_ps" = "#FFFF33",  # Yellow
+  "w" = "#A52A2A"  # brown
 )
 
 # Fix colours across plots for each estimation method
-estimation_shapes <- c(
-  "beta_bays" = 15, # Circle
-  "beta_dist" = 16, # Triangle
-  "beta_ridge" = 17, # Diamond
-  "beta_target" = 18, # Solid circle
-  "beta_optimal" = 4, # Square
-  "beta_ps" = 8,   # Star
-  "beta_nps" = 9
+estimation_shapes = c(
+  "Bayes_cp" = 15, # Circle
+  "DBTLE" = 16, # Triangle
+  "ABTLE" = 17, # Diamond
+  "RRE" = 18, # Solid circle
+  "ABTLE_theoretical" = 4, # Square
+  "MLE_ps" = 8,   # Star
+  "w" = 9
 )
 
-#fix plot dimensions
-a4_width <- 210 / 25.4
-a4_height <- 297 / 25.4
+#plot dimensions
+a4_width = 210 / 25.4
+a4_height = 297 / 25.4
 
 ```
 
 
 # 3.1 MSE per iteration plot
 ```{r}
+#load specific scenarion (THE WORST ONE)
 MSEdiff_df=readRDS("Final_results_rawMSE")
 test_diff_df=MSEdiff_df[140001:141000,]
 
-glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(w)),expression(hat(beta)),expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda]))
-calculate_differences <- function(column) {
-  length_vector <- length(column)
-  cumsum_vector <- cumsum(column)
-  differences <- numeric(length_vector)
+#Function to to calculates differences in AMSE between using n iterations and n-1 iterations
+calculate_differences = function(column) {
+  length_vector = length(column)
+  cumsum_vector = cumsum(column)
+  differences = numeric(length_vector)
   
   for (n in 3:length_vector) {
-    mean_n <- cumsum_vector[n] / n
-    mean_past_n <- cumsum_vector[n-1] / (n-1)
-    differences[n] <- mean_n - mean_past_n
+    mean_n = cumsum_vector[n] / n
+    mean_past_n = cumsum_vector[n-1] / (n-1)
+    differences[n] = mean_n - mean_past_n
   }
   
   return(differences[3:length_vector])
 }
 
 # Initialize an empty dataframe to store the results
-differences_df <- data.frame()
+differences_df = data.frame()
 
-# Iterate through columns 1 to 6 and calculate differences
+# apply the above function on all 6 estimation methods
 for (i in 1:6) {
-  method_name <- colnames(test_diff_df)[i]
-  differences <- calculate_differences(test_diff_df[[i]])
-  method_df <- data.frame(Index = 3:length(test_diff_df[[i]]), 
+  method_name = colnames(test_diff_df)[i]
+  differences = calculate_differences(test_diff_df[[i]])
+  method_df = data.frame(Index = 3:length(test_diff_df[[i]]), 
                           Differences = differences,
                           Method = method_name)
-  differences_df <- rbind(differences_df, method_df)
+  differences_df = rbind(differences_df, method_df)
 }
 
-# Plot using ggplot2
-MSEdiff_plot <- ggplot(differences_df, aes(x = Index, y = Differences, color = Method)) +
+
+# set temporary labels 
+glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[c]),
+  expression(hat(beta)[lambda  * lambda]),expression(hat(beta)),expression(hat(beta)[lambda]),expression(hat(w)))
+# Plots the AMSE difference between using n iterations and n-1 
+MSEdiff_plot = ggplot(differences_df, aes(x = Index, y = Differences, color = Method)) +
   geom_line(size=1) +
   labs(x = "Iteration", y = "AMSE Difference") +
   theme(legend.position = "bottom") +
   ylim(-0.5, 0.5) +
-  scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) + 
+  scale_color_manual(values  = estimation_colors, name = "Estimation Method",
+                     labels = glabs) + 
   guides(color = guide_legend(nrow = 1, override.aes = list(size = 2)))
 
+# extact and  save the legend as a separate plot
 llegend = cowplot::get_plot_component(MSEdiff_plot, 'guide-box-bottom', return_all = TRUE)
-# Save the legend as a separate plot
 ggsave(filename = 'legend_amsediff.pdf', plot = llegend,units ="cm" , width = 12, height = 1)
 
-MSEdiff_plot <- MSEdiff_plot + 
+#Remove the legend and save the plot 
+MSEdiff_plot = MSEdiff_plot + 
       theme(legend.position = "none")
-
-# Save the plot
-a4_width <- 210 / 25.4
-a4_height <- 297 / 25.4
-
 ggsave(plot = MSEdiff_plot, filename = 'MSEdiff.pdf', width = a4_height, height = a4_width)
 ```
 
-
 # 3.2 rARMSE plot
 ```{r}
-library("ggforce")
-library(cowplot)
 df=readRDS("Final_results_results")
-df=df[df$method != "beta_ps",]
-df=df[df$method != "beta_nps",]
-df=df[df$method != "beta_optimal",]
+df = df %>%
+  filter(!estimation_method %in% c("MLE_ps", "w", "ABTLE_theoretical"))
 
 
 
-glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
-df$Facetr <- c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.8"')[match(df$r, c(0.5, 0.7, 0.9))]
-df$Facetbias_factor <- c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
-df$Facetsig <- c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc <- c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda ]))
+df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
+df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
+df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
+df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 
-plot_mse <- ggplot(df, aes(x = ps_n, y = rarmse, colour = method, shape = method, linetype = method)) +
+plot_rarmse = ggplot(df, aes(x = ps_n, y = rarmse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
    geom_line() +
    scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) +
@@ -125,19 +137,17 @@ plot_mse <- ggplot(df, aes(x = ps_n, y = rarmse, colour = method, shape = method
    scale_x_continuous(breaks = c(25, 50, 75, 100)) +
    scale_y_continuous(breaks = c(-1,-0.8,-0.6,-0.4,-0.2, 0, 0.2, 0.4), limits = c(-1, 0.4)) +
    geom_hline(yintercept=0, linetype='dotted', col = 'black') +
-   theme(legend.position = "bottom") 
+   theme(legend.position = "bottom")
 
-
-
-llegend = cowplot::get_plot_component(plot_mse, 'guide-box-bottom', return_all = TRUE)
+llegend = cowplot::get_plot_component(plot_rarmse, 'guide-box-bottom', return_all = TRUE)
 # Save the legend as a separate plot
 ggsave(filename = 'legend_big.pdf', plot = llegend,units ="cm" , width = 10, height = 1)
 
 
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-create_plot <- function(page_number) {
-    p_save <- plot_mse + 
+create_plot = function(page_number) {
+    p_save = plot_rarmse + 
       theme(legend.position = "none") +
             facet_grid_paginate(Facetr + Facetbias_factor ~ Facetsig + Facetmc, nrow = 3, ncol = 3, page = page_number, 
                       labeller = label_parsed)
@@ -145,7 +155,7 @@ create_plot <- function(page_number) {
 }
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 for (i in 1:6) {
-  p_save <- create_plot(i)
+  p_save = create_plot(i)
    ggsave(plot = p_save, filename = paste0('RARMSEplot_', i, '.pdf'), width = a4_height, height = a4_width)
 }
 ```
@@ -153,21 +163,20 @@ for (i in 1:6) {
 
 # 3.3 rMoAB plot
 ```{r}
-library("ggforce")
-library(cowplot)
+
 df=readRDS("Final_results_results")
-df=df[df$method != "beta_ps",]
-df=df[df$method != "beta_nps",]
-df=df[df$method != "beta_optimal",]
+df=df[df$estimation_method != "MLE_ps",]
+df=df[df$estimation_method != "w",]
+df=df[df$estimation_method != "ABTLE_theoretical",]
 
-glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
-df$Facetr <- c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.8"')[match(df$r, c(0.5, 0.7, 0.9))]
-df$Facetbias_factor <- c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
-df$Facetsig <- c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc <- c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda ]))
+df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
+df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
+df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
+df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 
-plot_mse <- ggplot(df, aes(x = ps_n, y = rMoAB, colour = method, shape = method, linetype = method)) +
+plot_rmoab = ggplot(df, aes(x = ps_n, y = rMoAB, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
    geom_line() +
    scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) +
@@ -182,11 +191,11 @@ plot_mse <- ggplot(df, aes(x = ps_n, y = rMoAB, colour = method, shape = method,
 
 
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-a4_width <- 210 / 25.4
-a4_height <- 297 / 25.4
+a4_width = 210 / 25.4
+a4_height = 297 / 25.4
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-create_plot <- function(page_number) {
-    p_save <- plot_mse + 
+create_plot = function(page_number) {
+    p_save = plot_rmoab + 
       theme(legend.position = "none") +
             facet_grid_paginate(Facetr + Facetbias_factor ~ Facetsig + Facetmc, nrow = 3, ncol = 3, page = page_number, 
                       labeller = label_parsed)
@@ -194,49 +203,48 @@ create_plot <- function(page_number) {
 }
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 for (i in 1:6) {
-  p_save <- create_plot(i)
+  p_save = create_plot(i)
    ggsave(plot = p_save, filename = paste0('rMoABplot_', i, '.pdf'), width = a4_height, height = a4_width)
 }
 ```
 
 # 3.5 Prop lambda>lambda*
 ```{r}
-df <- readRDS("Final_results_Hyperparms")
+df = readRDS("Final_results_Hyperparms")
 # Function to calculate the proportion of times lambda_ab > lambda_star in a section
-# Function to calculate the proportion of times lambda_ab > lambda_star in a section
-calc_proportion <- function(data) {
+calc_proportion = function(data) {
   mean(data$lambda_ab > data$lambda_star)
 }
 
 # Function to calculate the proportion of times lambda_ab == 10^5 in a section
-calc_special_proportion <- function(data) {
+calc_special_proportion = function(data) {
   mean(data$lambda_ab == 10^5)
 }
 
 # Group data into sections of 1000 rows and calculate the proportions
-section_size <- 1000
-n_sections <- nrow(df) %/% section_size
+section_size = 1000
+n_sections = nrow(df) %/% section_size
 
 # Initialize vectors to store proportions
-proportions <- numeric(n_sections)
-special_proportions <- numeric(n_sections)
+proportions = numeric(n_sections)
+special_proportions = numeric(n_sections)
 
 for (i in 1:n_sections) {
-  start_idx <- (i - 1) * section_size + 1
-  end_idx <- i * section_size
-  section_data <- df[start_idx:end_idx, ]
-  proportions[i] <- calc_proportion(section_data)
-  special_proportions[i] <- calc_special_proportion(section_data)
+  start_idx = (i - 1) * section_size + 1
+  end_idx = i * section_size
+  section_data = df[start_idx:end_idx, ]
+  proportions[i] = calc_proportion(section_data)
+  special_proportions[i] = calc_special_proportion(section_data)
 }
 
 # Create a data frame for plotting
-plot_data <- data.frame(
+plot_data = data.frame(
   Section = 1:n_sections,
   Proportion = proportions,
   SpecialProportion = special_proportions
 )
 
-mean_proportion <- mean(proportions)
+mean_proportion = mean(proportions)
 # Create the bar plot
 hyper_prop_plot=ggplot(plot_data, aes(x = factor(Section))) +
   geom_bar(aes(y = Proportion, fill = "Proportion > lambda*"), stat = "identity", color = "blue", alpha = 0.7) +
@@ -259,17 +267,17 @@ ggsave(plot = hyper_prop_plot, filename = paste0('hyper_prop_plot.pdf'), width =
 ## 3.4 rReal vs rtheoretical beta_lamdba_eta
 ```{r}
 df=readRDS("Final_results_results")
-df=df[df$method %in% c("beta_ridge", "beta_optimal","beta_target"),]
-glabs=c(expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda]))
+df=df[df$estimation_method %in% c("ABTLE", "ABTLE_theoretical","RRE"),]
+glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta)[lambda]))
 
 # Match values in df$r to indices of expressions
 # Ensure variable names in the dataset match these exactly
-df$Facetr <- c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.8"')[match(df$r, c(0.5, 0.7, 0.9))]
-df$Facetbias_factor <- c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
-df$Facetsig <- c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc <- c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
+df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
+df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
+df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
-plot_mse_optimal <- ggplot(df, aes(x = ps_n, y = rarmse, colour = method, shape = method, linetype = method)) +
+plot_rarmse_optimal = ggplot(df, aes(x = ps_n, y = rarmse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
    geom_line() +
    scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) +
@@ -283,15 +291,15 @@ plot_mse_optimal <- ggplot(df, aes(x = ps_n, y = rarmse, colour = method, shape 
 
 
 
-legend = cowplot::get_plot_component(plot_mse_optimal, 'guide-box-bottom', return_all = TRUE)
+legend = cowplot::get_plot_component(plot_rarmse_optimal, 'guide-box-bottom', return_all = TRUE)
 # Save the legend as a separate plot
 ggsave(filename = 'legend_small.pdf', plot = legend,units ="cm" , width = 8, height = 1)
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-a4_width <- 210 / 25.4
-a4_height <- 297 / 25.4
+a4_width = 210 / 25.4
+a4_height = 297 / 25.4
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-create_plot <- function(page_number) {
-    p_save <- plot_mse_optimal + 
+create_plot = function(page_number) {
+    p_save = plot_rarmse_optimal + 
       theme(legend.position = "none") +
             facet_grid_paginate(Facetr + Facetbias_factor ~ Facetsig + Facetmc, nrow = 3, ncol = 3, page = page_number, 
                       labeller = label_parsed)
@@ -301,7 +309,7 @@ create_plot <- function(page_number) {
 
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 for (i in 1:6) {
-  p_save <- create_plot(i)
+  p_save = create_plot(i)
    ggsave(plot = p_save, filename = paste0('rplot_mse_optimalplot_', i, '.pdf'), width = a4_height, height = a4_width)
 }
 ```
@@ -309,17 +317,17 @@ for (i in 1:6) {
 #absolute values
 ```{r}
 df=readRDS("Final_results_results")
-df=df[df$method != "beta_nps",]
+df=df[df$estimation_method != "w",]
 
 
 glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta))  ,expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
 
-df$Facetr <- c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.8"')[match(df$r, c(0.5, 0.7, 0.9))]
-df$Facetbias_factor <- c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
-df$Facetsig <- c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc <- c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
+df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
+df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
+df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
-plot_mse <- ggplot(df, aes(x = ps_n, y = rmse, colour = method, shape = method, linetype = method)) +
+plot_armse = ggplot(df, aes(x = ps_n, y = armse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
    geom_line() +
    scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) +
@@ -332,17 +340,13 @@ plot_mse <- ggplot(df, aes(x = ps_n, y = rmse, colour = method, shape = method, 
 
 
 
-llegend = cowplot::get_plot_component(plot_mse, 'guide-box-bottom', return_all = TRUE)
+llegend = cowplot::get_plot_component(plot_armse, 'guide-box-bottom', return_all = TRUE)
 # Save the legend as a separate plot
 ggsave(filename = 'legend_big_raw.pdf', plot = llegend,units ="cm" , width = 10, height = 2)
 
-
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-a4_width <- 210 / 25.4
-a4_height <- 297 / 25.4
-# Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
-create_plot <- function(page_number) {
-    p_save <- plot_mse + 
+create_plot = function(page_number) {
+    p_save = plot_armse + 
       theme(legend.position = "none") +
             facet_grid_paginate(Facetr + Facetbias_factor ~ Facetsig + Facetmc, nrow = 3, ncol = 3, page = page_number, 
                       labeller = label_parsed)
@@ -350,26 +354,23 @@ create_plot <- function(page_number) {
 }
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 for (i in 1:6) {
-  p_save <- create_plot(i)
+  p_save = create_plot(i)
    ggsave(plot = p_save, filename = paste0('ARMSEplot_', i, '.pdf'), width = a4_height, height = a4_width)
 }
-
-
-
 ```
 
 ```{r}
 df=readRDS("Final_results_results")
-df=df[df$method != "beta_nps",]
+df=df[df$estimation_method != "w",]
 
 glabs=c(expression(hat(beta)[c]),expression(hat(beta)[lambda  * lambda]),expression(hat(beta)[lambda^"*"*eta^"*"]),expression(hat(beta))  ,expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda ]))
 
-df$Facetr <- c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.8"')[match(df$r, c(0.5, 0.7, 0.9))]
-df$Facetbias_factor <- c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
-df$Facetsig <- c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc <- c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
+df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
+df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
+df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
-plot_mse <- ggplot(df, aes(x = ps_n, y = MAB, colour = method, shape = method, linetype = method)) +
+plot_moab = ggplot(df, aes(x = ps_n, y = moab, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
    geom_line() +
    scale_color_manual(values  = estimation_colors, name = "Estimation Method",labels = glabs) +
@@ -382,13 +383,13 @@ plot_mse <- ggplot(df, aes(x = ps_n, y = MAB, colour = method, shape = method, l
 
 
 
-llegend = cowplot::get_plot_component(plot_mse, 'guide-box-bottom', return_all = TRUE)
+llegend = cowplot::get_plot_component(plot_moab, 'guide-box-bottom', return_all = TRUE)
 # Save the legend as a separate plot
 ggsave(filename = 'legend_big_raw.pdf', plot = llegend,units ="cm" , width = 10, height = 2)
 
 
-create_plot <- function(page_number) {
-    p_save <- plot_mse + 
+create_plot = function(page_number) {
+    p_save = plot_moab + 
       theme(legend.position = "none") +
             facet_grid_paginate(Facetr + Facetbias_factor ~ Facetsig + Facetmc, nrow = 3, ncol = 3, page = page_number, 
                       labeller = label_parsed)
@@ -396,10 +397,7 @@ create_plot <- function(page_number) {
 }
 # Loop to save plots with an empty legend for pages 1 and 3, and full legend for page 2
 for (i in 1:6) {
-  p_save <- create_plot(i)
+  p_save = create_plot(i)
    ggsave(plot = p_save, filename = paste0('MoABplot_', i, '.pdf'), width = a4_height, height = a4_width)
 }
 ```
-
-```
-

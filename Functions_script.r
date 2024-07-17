@@ -1,7 +1,5 @@
 
-
-# 0. Setup
-## 0.1 load libraries
+# 0. libraries needed (might be double loaded but who cares)
 library(tidyverse) # used for data wrangling
 library(sampling) # used for sampling
 library(MASS) # used for generating data
@@ -11,9 +9,8 @@ library(parallel) # used for making clusters on cores
 library(doParallel) # used for parallelizing the simulation 
 
 
-
 # 1. Functions used in the analysis
-## 1.1 This function generates a population of size N with p covariates with an even covariance of "multi_cor"
+## 1.1 This function generates a population of size N with p covariates with an even covariance of "multi_cor" will break if multi_cor is too high!!!!!
 population_func = function(N,p,multi_cor){
   
   # make a covariance matrix for p variables + 1 (selectivity variable) with a variance of 1
@@ -34,14 +31,14 @@ population_func = function(N,p,multi_cor){
     return(Pop_df)
 }
 
-## 1.2 Takes as coefficient vector (betas) of length p and generates a new vector (phis) of length p which when added to the coefficient vector (betas) results in a set correlation and bias factor relative to betas
+## 1.2 Takes as coefficient vector (betas) of length p and generates a new vector (phis) of length p which when added to the coefficient vector (betas) results in a set correlation and bias factor relative to betas (w)
 adj_bias_func = function(betas, target_correlation, bias_factor, p) {
   set.seed(2135248)
   
   #sets max size (bias) of new vector 
   max_sum = sum(betas) * abs(bias_factor)
   
-  #scales vector based on max bias and checks if the new sc 
+  #Takes a vector and rescales it and checks its correlation
   obj_func = function(new_vec) {
     phi = new_vec / sum(new_vec) * max_sum
     
@@ -55,11 +52,11 @@ adj_bias_func = function(betas, target_correlation, bias_factor, p) {
     return(abs(corr - target_correlation))
   }
   
+  #generates a ranom vector as start point and then uses optim to rotate it to desired correlation 
   initial_vec = runif(p, 0.00, max_sum)
-  
   result = optim(par = initial_vec, fn = obj_func, method = "L-BFGS-B", lower = 0.00, upper = max_sum)
-  w = result$par / sum(result$par) * max_sum
-  return(w)
+  phi = result$par / sum(result$par) * max_sum
+  return(phi)
 }
 
 
@@ -76,7 +73,7 @@ y_func = function(Pop_df,betas,y_var){
   }
   
   
-  #Generate errors
+  #Generate errors and a model matrix with all relevant variables 
   error=rnorm(nrow(Pop_df),0,y_var)
   pop_matrix = model.matrix(~. -1 -z, data = Pop_df)
   
@@ -88,16 +85,14 @@ y_func = function(Pop_df,betas,y_var){
 }
 
 
-## 1.4 transform and rescale selecitivity column function
-
+## 1.4 transform and rescales the selecitivity column function
 Selectivity_func = function(column,nps_n,scaling = 2,shifting = 1){
   column_out = 1/(1 + exp(scaling*-(column-shifting)))
   column_out = nps_n*column_out  / sum(column_out)
 }
 
 
-## 1.5 Baysian support functions (SEE WISLONWSKY)
-
+## 1.5 Baysian support functions (SEE WISLONWSKY paper for explanation of code)
 calc.posterior = function(mu_0, k_0, Vin = diag(length(mu_0)), a_0 = 0, b_0 = 0,
                           y = Y, x = X) {
   if (dim(as.matrix(x))[2] !=  length(mu_0) | length(y) !=  dim(as.matrix(x))[1])
@@ -150,9 +145,7 @@ gen.res = function(PS_y,ps_mat, nps_y, nps_mat){
   coefsize = dim(xp_std)[2] #number of coefficients
   k = length(yp_std) # length of Prob sample
   
-  
   result_ni = calc.posterior(mu_0 = rep(0,coefsize), k_0 = k, y = yp_std, x = xp_std)
-  
   #ML prob data
   lm_pobj = lm(yp_std ~ xp_std-1)
   # nonprob data
@@ -175,12 +168,12 @@ gen.res = function(PS_y,ps_mat, nps_y, nps_mat){
 ## 1.6 Cross-validation for optimal hyper parameter function
 CV_func = function(PS_DF, w, folds) {
   
-  # Assigning current_lambda and current_eta to local variables lambda and eta
+  # set n and the range of lambda values to search through 
   n = nrow(PS_DF)
   lambda = c(seq(0.0005, 0.99, length.out = 150), seq(1,5,length.out = 100),seq(6, 100, length.out = 95),10^5)
   
+  #do cv to find best lambda for the RRE, DBTLE and ABTLE 
   CV_results_inv = rowMeans(sapply(folds, function(fold) {
-    
     train_df = PS_DF[-fold, ]
     test_df = PS_DF[fold, ]
     test_y = test_df$y
@@ -204,31 +197,32 @@ CV_func = function(PS_DF, w, folds) {
       if(eta<0){
         eta=0
       }
-      # Compute beta_hat using ridge regression
-      beta_hat = J %*% (D + n * eta * w)
-      beta_hat_2 = J %*% D
-      beta_hat_dist = J %*% (D + n * lam * w)
+      # Compute beta_hat_* for all ridge variants (ABTLE, RRE, DBTLE)
+      beta_hat_AB = J %*% (D + n * eta * w)
+      beta_hat_RRE = J %*% D
+      beta_hat_DB = J %*% (D + n * lam * w)
       # Calculate mean squared error
-      mse_target=mean((test_mat %*% beta_hat_2 - test_y)^2)
-      mse_atl=mean((test_mat %*% beta_hat - test_y)^2)
-      mse_dist=mean((test_mat %*% beta_hat_dist - test_y)^2)
+      mse_RRE=mean((test_mat %*% beta_hat_RRE - test_y)^2)
+      mse_AB=mean((test_mat %*% beta_hat_AB - test_y)^2)
+      mse_DB=mean((test_mat %*% beta_hat_DB - test_y)^2)
       
-      return(c(mse_atl,mse_target,mse_dist))
+      return(c(mse_AB,mse_RRE,mse_DB))
     })
   }))
+  #find best value and extract the corresponding lambda value
+  AB_vec = CV_results_inv[seq(1, length(CV_results_inv), by = 3)]
+  RRE_vec = CV_results_inv[seq(2, length(CV_results_inv), by = 3)]
+  DB_vec = CV_results_inv[seq(3, length(CV_results_inv), by = 3)]
   
-  atl_vec = CV_results_inv[seq(1, length(CV_results_inv), by = 3)]
-  target_vec = CV_results_inv[seq(2, length(CV_results_inv), by = 3)]
-  dist_vec = CV_results_inv[seq(3, length(CV_results_inv), by = 3)]
+  min_ind = which(AB_vec ==  min(AB_vec))
+  lambda_optimal_AB = lambda[min_ind]
+  min_ind = which(RRE_vec ==  min(RRE_vec))
+  lambda_optimal_RRE = lambda[min_ind]
   
-  min_ind = which(atl_vec ==  min(atl_vec))
-  lambda_optimal_atl = lambda[min_ind]
-  min_ind = which(target_vec ==  min(target_vec))
-  lambda_optimal_target = lambda[min_ind]
+  min_ind = which(DB_vec ==  min(DB_vec))
+  lambda_optimal_DB = lambda[min_ind]
   
-  min_ind = which(dist_vec ==  min(dist_vec))
-  lambda_optimal_dist = lambda[min_ind]
-  
+  #only for the ABTLE repeat the step but using only the previously found lambda value 
   results = sapply(folds, function(fold) {
     train_df = PS_DF[-fold, ]
     test_df = PS_DF[fold, ]
@@ -244,46 +238,44 @@ CV_func = function(PS_DF, w, folds) {
     C = t(test_mat) %*% test_mat
     D =  t(train_mat) %*% train_y
     
-    J = solve(A + (n * lambda_optimal_atl *I))
+    J = solve(A + (n * lambda_optimal_AB *I))
     above = t(J %*% w) %*% B - t(J %*% D) %*% C %*% J %*% w
     denom = n * t(J %*%w) %*% C %*% (J %*% w)
     
     
     return(list(above = above, denom = denom))
   })
-  
+  # rather than looking at each fold sum them up to get \eta^hat
   total_above  = sum(unlist(results[1,]))
   total_denom  = sum(unlist(results[2,]))
   
   # Divide the total above by the total denom
-  eta_optimal = total_above / total_denom
-  if(eta_optimal<0){
-    eta_optimal=0
+  eta_optimal_AB = total_above / total_denom
+  if(eta_optimal_AB<0){
+    eta_optimal_AB=0
   }
-
-  return(list(lambda_optimal = lambda_optimal_atl, eta_optimal = eta_optimal,lambda_optimal_target=lambda_optimal_target,lambda_optimal_dist=lambda_optimal_dist))
+  #return all penalty parameters
+  return(list(lambda_optimal_AB = lambda_optimal_AB, eta_optimal_AB = eta_optimal_AB,lambda_optimal_RRE=lambda_optimal_RRE,lambda_optimal_DB=lambda_optimal_DB))
 }
 
 
 ## 1.6 analysis function
 analysis_func = function(Pop_df,sample_col,ps_n, nps_n,main_coef,r,popres23) {
   
-  # sample PS and NPS
+  # sample PS and NPS and select the subset of relevant variables
   Pop_df = Pop_df %>%
     mutate(
       PS = ifelse(row.names(.) %in% sample(nrow(.), ps_n), 1, 0),
       NPS = UPrandomsystematic(Pop_df[[sample_col]])
     )
-  
   NPS_DF = subset(Pop_df, NPS ==  1)[,1:(p+1)]
   PS_DF = subset(Pop_df, PS ==  1)[,1:(p+1)]
   
   
-  #get coefficients for each variable
-  beta_ps = coef(lm(y ~ .-1, data = PS_DF))
-  w = coef(lm(y ~ .-1, data = NPS_DF))
+  #get coefficients for each variable and the perform CV (above function))
+  w_hat = coef(lm(y ~ .-1, data = NPS_DF))
   folds = createFolds(PS_DF$y,10)
-  hyper_params = CV_func(PS_DF,w,folds)
+  hyper_params = CV_func(PS_DF,w_hat,folds)
   
   ################ MODEL CHUNK #################
   PS_y = PS_DF$y
@@ -291,49 +283,51 @@ analysis_func = function(Pop_df,sample_col,ps_n, nps_n,main_coef,r,popres23) {
   ps_mat  = model.matrix(y ~ .-1, data = PS_DF)
   nps_mat =  model.matrix(y ~ .-1, data = NPS_DF)
   
+  #calculate optimal penalty parameters instead of using the cross-validation for beta_hat_optimal
   lambda_star= ((3/ps_n)*popres23) / (5.25*(1-r^2))
-  as=sqrt(w %*% w)
-  eta_star = lambda_star*r*(sqrt(5.25)/as)
-  beta_hat_ridge = solve( t(ps_mat) %*% ps_mat + (hyper_params[[1]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (hyper_params[[2]]*ps_n * w) )
-  beta_hat_target = solve( t(ps_mat) %*% ps_mat + (hyper_params[[3]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y )
-  beta_hat_dist = solve( t(ps_mat) %*% ps_mat + (hyper_params[[4]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (hyper_params[[4]]*ps_n * w) )
+  eta_star = lambda_star*r*(sqrt(5.25)/sqrt(w_hat %*% w_hat))
   
-  beta_hat_ps = solve(t(ps_mat) %*% ps_mat) %*% ( t(ps_mat) %*% PS_y)
-  beta_hat_nps = solve(t(nps_mat) %*% nps_mat) %*% ( t(nps_mat) %*% NPS_y)
-  beta_bays = gen.res(PS_y,ps_mat,NPS_y,nps_mat)
+  #Fit all estimators on the PS sample (and nps when needed) using the found or calculated penalty parameters 
+  ABTLE = solve( t(ps_mat) %*% ps_mat + (hyper_params[[1]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (hyper_params[[2]]*ps_n * w_hat) )
+  RRE = solve( t(ps_mat) %*% ps_mat + (hyper_params[[3]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y )
+  DBTLE = solve( t(ps_mat) %*% ps_mat + (hyper_params[[4]]*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (hyper_params[[4]]*ps_n * w_hat) )
+  MLE_ps = solve(t(ps_mat) %*% ps_mat) %*% ( t(ps_mat) %*% PS_y)
+  w = solve(t(nps_mat) %*% nps_mat) %*% ( t(nps_mat) %*% NPS_y)
+  Bayes_cp = gen.res(PS_y,ps_mat,NPS_y,nps_mat)
+  ABTLE_theoretical = solve( t(ps_mat) %*% ps_mat + (lambda_star*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (eta_star*ps_n * w_hat) )
   
-  beta_hat_optimal = solve( t(ps_mat) %*% ps_mat + (lambda_star*ps_n * diag(ncol(ps_mat))) ) %*% ( t(ps_mat) %*% PS_y + (eta_star*ps_n * w) )
+  #also add the calculated penalty parameters to the hyper_params vector
   hyper_params$lambda_star =lambda_star
   hyper_params$eta_star =as.numeric(eta_star)
   ################ MODEL CHUNK END  #################
   ################ ANALYSIS CHUNK END #################
-  return(list("beta_ridge" = beta_hat_ridge, "beta_target" = beta_hat_target,"beta_dist"=beta_hat_dist, "beta_ps" = beta_hat_ps, "beta_nps" = beta_hat_nps, "beta_bays" = beta_bays,"beta_optimal"=beta_hat_optimal,"hyper_params"=hyper_params))
+  return(list("ABTLE" = ABTLE, "RRE" = RRE,"DBTLE"=DBTLE, "MLE_ps" = MLE_ps, "w" = w, "Bayes_cp" = Bayes_cp,"ABTLE_theoretical"=ABTLE_theoretical,"hyper_params"=hyper_params))
 }
 
-## 1.7 extract analysis function 
+## 1.7 extract analysis function (litterally just does sapply and makes a new list )
 extract_beta_values = function(df) {
-  beta_ridge = sapply(df, function(x) x$beta_ridge)
-  beta_target = sapply(df, function(x) x$beta_target)
-  beta_ps = sapply(df, function(x) x$beta_ps)
-  beta_nps = sapply(df, function(x) x$beta_nps)
-  beta_bays = sapply(df, function(x) x$beta_bays)
-  beta_dist = sapply(df, function(x) x$beta_dist)
-  beta_optimal = sapply(df, function(x) x$beta_optimal)
+  ABTLE = sapply(df, function(x) x$ABTLE)
+  RRE = sapply(df, function(x) x$RRE)
+  MLE_ps = sapply(df, function(x) x$MLE_ps)
+  w = sapply(df, function(x) x$w)
+  Bayes_cp = sapply(df, function(x) x$Bayes_cp)
+  DBTLE = sapply(df, function(x) x$DBTLE)
+  ABTLE_theoretical = sapply(df, function(x) x$ABTLE_theoretical)
   hyper_params = sapply(df, function(x) x$hyper_params)
-  return(list(beta_ridge = beta_ridge,beta_target = beta_target, beta_dist=beta_dist, beta_ps = beta_ps, beta_nps = beta_nps,beta_bays = beta_bays,beta_optimal=beta_optimal,hyper_params =hyper_params ))
+  return(list(ABTLE = ABTLE,RRE = RRE, DBTLE=DBTLE, MLE_ps = MLE_ps, w = w,Bayes_cp = Bayes_cp,ABTLE_theoretical=ABTLE_theoretical,hyper_params =hyper_params ))
 }
 
-
-## 1.8 Evaluation (RMSE MoAB) function 
+## 1.8 calculates the ARMSE and MoAB for each estimator FOR ALL ITERATIONS
 eval_func = function(results,betas)  {
   iter_rmse = sapply(results, function(method) {
     # Calculate the RMSE for each row using apply
-    apply(method, 2, function(col) sqrt(mean((col - betas)^2)))
+
+    apply(method, 2, function(column) sqrt(mean((column - betas)^2)))
     
   })
-  iter_rmse=colMeans(iter_rmse)
+  iter_armse=colMeans(iter_rmse)
   
-  iter_bias = sapply(results, function(method) {
+  iter_moab = sapply(results, function(method) {
     method_mat=as.matrix(method,nrow=length(betas))
     result = sweep(method_mat, 1, betas, "-")
     result2=mean(abs(rowMeans(result)))
@@ -341,20 +335,21 @@ eval_func = function(results,betas)  {
     
   })
   
-  df=data.frame(method=names(iter_rmse),rmse=iter_rmse,MAB=iter_bias,row.names = NULL)
+  df=data.frame(estimation_method=names(iter_armse),armse=iter_armse,moab=iter_moab,row.names = NULL)
   return(df)
 }
 
+# 1.9 Calculates the MSE for each estimator FOR EACH ITERATION
 MSE_func = function(results,betas){
-  iter_rmse = sapply(results, function(method) {
+  iter_mse = sapply(results, function(method) {
     # Calculate the RMSE for each row using apply
-    apply(method, 2, function(col) sqrt(mean((col - betas)^2)))
+    apply(method, 2, function(column) sqrt(mean((column - betas)^2)))
     
   })
-  return(iter_rmse)
+  return(iter_mse)
 }
 
-## 1.X Body function this functions connects all above functions, running them in order and connecting their outputs It a row out of the scenario df, fixed parameters which never change, and B which determines number of times the analysis is replicated 
+## 2. Body function this functions connects all above functions, running them in order and connecting their outputs It a row out of the scenario df, fixed parameters which never change, and B which determines number of times the analysis is replicated 
 simfunction = function(par_comb,par_fixed, B) {
   
   # 1. Import scenario parameters
@@ -384,8 +379,8 @@ simfunction = function(par_comb,par_fixed, B) {
     mutate(p = Selectivity_func(z, nps_n,2,1)) 
   
   # 4.1 fit the model on the population to get the true residual variance which is needed for the theoretical version of ABTLE 
-  popmodel=lm(y~ -1 +X1 + X2+ X3,data=Pop_df)
-  popresvar=var(resid(popmod23))
+  pop_model=lm(y~ -1 +X1 + X2+ X3,data=Pop_df)
+  popresvar=var(resid(pop_model))
   
   # 5. conduct the analysis B times for each of the four sample sizes 
   ps_n_values = list(25, 50, 75, 100)
@@ -397,24 +392,26 @@ simfunction = function(par_comb,par_fixed, B) {
   combined_df = data.frame()
   MSE_df = data.frame()
   hyper_comb_df = data.frame()
+  #exact and put each output in its correct df (basically just sorting differently sized results into DFs)
   for (i in 1:length(results_list)){
     results_permethod = extract_beta_values(results_list[[i]])
     hyper_out = results_permethod[8]
 
     #Evaluate each method
     results_permethod=results_permethod[1:7]
-    output=eval_func(results_permethod,betas[1:p])
+    output=eval_func(results_permethod,main_coef)
     combined_df = bind_rows(combined_df, output)
     
     
-    hyper_params_ouput=data.frame("lambda_ab" = unlist(hyper_out$hyper_params[1,]),"eta_ab" = unlist(hyper_out$hyper_params[2,]),"lambda_tb"= unlist(hyper_out$hyper_params[3,]),"lambda_db"= unlist(hyper_out$hyper_params[4,]),"lambda_star"=unlist(hyper_out$hyper_params[5,]),"eta_star"=unlist(hyper_out$hyper_params[6,]) )
+    hyper_params_ouput=data.frame("lambda_ab" = unlist(hyper_out$hyper_params[1,]),"eta_ab" = unlist(hyper_out$hyper_params[2,]),"lambda_RRE"= unlist(hyper_out$hyper_params[3,]),"lambda_db"= unlist(hyper_out$hyper_params[4,]),"lambda_star"=unlist(hyper_out$hyper_params[5,]),"eta_star"=unlist(hyper_out$hyper_params[6,]) )
     hyper_comb_df = bind_rows(hyper_comb_df, hyper_params_ouput)
     
-    MSE_output=as.data.frame(MSE_func(results_permethod,betas[1:p]))
+    MSE_output=as.data.frame(MSE_func(results_permethod,main_coef))
     MSE_df=bind_rows(MSE_df,MSE_output)
     
   }
   combined_df$ps_n=rep(c(25,50,75,100),each=7)
   combined_df$coef=list(coefs)
+  #return three df 1, Results relevant for the analysis 2.underlying penalty paramters 3. MSE per iteration
   return(list("combined_df"=combined_df,"hyper_comb_df"=hyper_comb_df, "MSE_df"=MSE_df))
 }
