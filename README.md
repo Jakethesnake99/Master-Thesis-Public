@@ -7,10 +7,9 @@ The three RDA files contain the results of my analysis. "Final_results_results" 
 
 If you want to replicate my visualizations you only need to run the 'plotexe.rmd' and it will save every single plot + legend on your computer. 
 
-If you want to re-run the analysis run the "analysisexe.rmd" It will call all the functions from the "Functions_script.r" and rerun the analysis. The results depend on a set seed so unless you muck that up the results will be the same as what is already available on GitHub. KEEP IN MIND. I used a virtual computer available at the CBS and with it, it took approximately 4 hours to run so expect to be a bit patient.
+If you want to re-run the analysis run the "analysisexe.rmd" It will call all the functions from the "Functions_script.r" and rerun the analysis. The results depend on a set seed so unless you muck that up the results will be the same as what is already available on GitHub. KEEP IN MIND. I used a virtual computer available at the CBS and with it, it took approximately 5 hours to run so expect to be a bit patient. Also since it uses all cores in the computer you can't do much whilst it runs.
 
-If you want to see how the analysis was conducted simply look into the "Functions_script.r" it contains all the functions from population generation to CV, to estimating ARMSE. Because of the way it was initially written it is probably easiest to read it from the bottom up since the end contains the "mother function" which calls all functions together. "analysisexe.rmd" is mainly there since it was the easiest way to parallelize the process. it does not do much other than send all the functions into each core and then once completed it organizes them again.
+If you want to see how the analysis was conducted simply look into the "Functions_script.r" it contains all the functions from population generation to CV, to estimating ARMSE. Because of the way it was initially written it is probably easiest to read it from the bottom up since the end contains the "mother function" which calls all functions together. "analysisexe.rmd" is mainly there since it was the easiest way to parallelize the process. It does not do much other than send all the functions into each core and then once completed it organizes the results again (and creates the relative values).
 
-Before the Thesis defense, the goal is that everything should be cleared up and in 3 neat scripts. If you are too early I might not have gotten there yet and it might be messy.
+If you want to access the latex file from which the pdf was created from see https://www.overleaf.com/read/hnswxjrtgwvp#2a0277
 
-Sorry.
