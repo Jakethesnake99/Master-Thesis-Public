@@ -124,7 +124,7 @@ glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[c]),expression(ha
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetmc = c("'Multicollinearity = 0.2'", "'Multicollinearity = 0.5'", "'Multicollinearity = 0.8'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 
 plot_rarmse = ggplot(df, aes(x = ps_n, y = rarmse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
@@ -173,7 +173,7 @@ glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[c]),expression(ha
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetmc = c("'Multicollinearity = 0.2'", "'Multicollinearity = 0.5'", "'Multicollinearity = 0.8'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 
 plot_rmoab = ggplot(df, aes(x = ps_n, y = rMoAB, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
@@ -275,7 +275,7 @@ glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda^"*"*eta^"*
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetmc = c("'Multicollinearity = 0.2'", "'Multicollinearity = 0.5'", "'Multicollinearity = 0.8'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 plot_rarmse_optimal = ggplot(df, aes(x = ps_n, y = rarmse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
@@ -325,7 +325,7 @@ glabs=c(expression(hat(beta)[lambda*eta]),expression(hat(beta)[lambda^"*"*eta^"*
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetmc = c("'Multicollinearity = 0.2'", "'Multicollinearity = 0.5'", "'Multicollinearity = 0.8'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 plot_armse = ggplot(df, aes(x = ps_n, y = armse, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
@@ -366,7 +366,7 @@ df=df[df$estimation_method != "w",]
 df$Facetr = c('rho*" = 0.5"', 'rho*" = 0.7"', 'rho*" = 0.9"')[match(df$r, c(0.5, 0.7, 0.9))]
 df$Facetbias_factor = c("'f = -0.5'", "'f = 1'", "'f = 3'")[match(df$bias_factor, c(-0.5, 1, 3))]
 df$Facetsig = c('sigma^2*" = 2"','sigma^2*" = 10"')[match(df$y_var, c(2,10))]
-df$Facetmc = c("'Multicollinearity = 0.5'", "'Multicollinearity = 0.7'", "'Multicollinearity = 0.9'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
+df$Facetmc = c("'Multicollinearity = 0.2'", "'Multicollinearity = 0.5'", "'Multicollinearity = 0.8'")[match(df$multicoliniarity, c(0.38, 0.64, 0.87))]
 
 plot_moab = ggplot(df, aes(x = ps_n, y = moab, colour = estimation_method, shape = estimation_method, linetype = estimation_method)) +
    geom_point(size = 4) +
